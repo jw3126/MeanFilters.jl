@@ -2,8 +2,6 @@ module MeanFilters
 
 export meanfilter
 
-using ArgCheck
-
 const Window{N} = NTuple{N,UnitRange{Int}}
 
 function alloc_output(x::AbstractArray)
