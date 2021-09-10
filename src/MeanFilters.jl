@@ -17,6 +17,7 @@ function meanfilter1d(v::AbstractVector, window::UnitRange{Int})
 end
 
 function meanfilter1d!(out, v::AbstractVector, window::UnitRange{Int})
+    # out and v may not alias!
     if isempty(v)
         return out
     end
@@ -59,14 +60,17 @@ function meanfilter1d!(out, v::AbstractVector, window::UnitRange{Int})
 end
 
 function resolve_range(r::AbstractRange)
-    ret = UnitRange{Int}(r)
-    if isempty(r)
+    resolve_range(UnitRange{Int}(r))
+end
+function resolve_range(r::UnitRange{Int})
+    if first(r) <= 0 <= last(r)
+        return r
+    else
         msg = """
-        Window cannot be empty. Got $r.
+        Range must contain 0. Got $r
         """
         throw(ArgumentError(msg))
     end
-    return ret
 end
 function resolve_range(x::Number)
     i = Int(x)
