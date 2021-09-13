@@ -1,6 +1,8 @@
 using MeanFilters
 using Test
 using MeanFilters: meanfilter!
+using ImageFiltering: imfilter, NA
+using ImageFiltering.OffsetArrays: OffsetArray
 
 @testset "1d" begin
     @test meanfilter([1,2,3,4], -1:1) ≈ [1.5, 2, 3, 3.5]
@@ -29,4 +31,19 @@ end
 
     arr = [1 2 3; 4 5 6]
     @test meanfilter([1 2 3; 4 5 6], (0:1, 0:0)) == [2.5 3.5 4.5; 4 5 6]
+end
+
+@testset "against ImageFiltering.mapwindow" begin
+
+    function meanfilter_reference(arr, window)
+        ker = fill(1/prod(map(length,window)), window...)
+        imfilter(arr, ker, NA())
+    end
+
+    for _ in 1:100
+        ndims = rand(1:2)
+        arr = randn(rand(1:10, ndims)...)
+        window = Tuple(-rand(0:10):rand(0:10) for _ in 1:ndims)
+        @test meanfilter(arr, window) ≈ meanfilter_reference(arr, window)
+    end
 end
