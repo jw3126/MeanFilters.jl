@@ -107,8 +107,9 @@ end
 """
     out, buf2 = _meanfilter_along_axis!!!(buf, inp, axis)
 
-After calling this function `buf, buf2, inp` containt arbitrary data.
-Only `out` is valid.
+`buf` and `inp` may not alias. `inp` contains the input and `buf` may contain
+arbitrary junk data. After calling this function `buf, buf2, inp` contain arbitrary junk.
+It `out === buf && buf2 === inp` or `out === inp && buf2 === buf` will hold.
 """
 function _meanfilter_along_axis!!!(out, inp, window::Window, axis)
     N = ndims(out)
@@ -122,17 +123,21 @@ function _meanfilter_along_axis!!!(out, inp, window::Window, axis)
         meanfilter1d!(out, inp, r)
     elseif N === 2
         if axis === 1
-            for iy in axes(out, 2)
+            Threads.@threads for iy in axes(out, 2)
                 meanfilter1d!(view(out,:,iy), view(inp,:,iy), r)
             end
         else
             @assert axis === 2
-            for ix in axes(out, 1)
+            Threads.@threads for ix in axes(out, 1)
                 meanfilter1d!(view(out,ix,:), view(inp,ix,:), r)
             end
         end
     else
-        error("TODO Only 1d and 2d supported currently")
+        grid = Base.setindex(axes(out), Base.OneTo(1), axis)
+        Threads.@threads for I in CartesianIndices(grid)
+            inds = Base.setindex(Tuple(I), (:), axis)
+            meanfilter1d!(view(out, inds...), view(inp,inds...), r)
+        end
     end
     return (out, inp)
 end
@@ -151,9 +156,25 @@ function _meanfilter!(out::AbstractMatrix, arr::AbstractMatrix, window::Window{2
     inp, out = _meanfilter_along_axis!!!(out, inp, window, 2)
     return inp
 end
+function _meanfilter!(out::AbstractArray{T2,N}, arr::AbstractArray{T1,N}, window::Window{N}) where {T1,T2,N}
+    inp = similar(out)
+    copy!(inp, arr)
+    for axis in 1:ndims(out)
+        inp, out = _meanfilter_along_axis!!!(out, inp, window, axis)
+    end
+    return inp
+end
 
 function meanfilter!(out, arr, window)
-    w = resolve_window(window)
+    w::Window = resolve_window(window)
+    if ndims(arr) !== length(w)
+        msg = """
+        Number of array and window dimensions must coincide. Got:
+        ndims(arr) = $(ndims(arr))
+        length(window) = $(length(w))
+        """
+        throw(ArgumentError(msg))
+    end
     out2 = _meanfilter!(out, arr, w)
     if out2 !== out
         copy!(out, out2)
